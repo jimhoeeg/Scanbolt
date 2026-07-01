@@ -8,6 +8,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import identityRoutes from './modules/identity/identity.routes';
 import garageRoutes from './modules/garage/garage.routes';
 import productRoutes from './modules/products/products.routes';
+import machineRoutes from './modules/machines/machines.routes';
 import dealerRoutes from './modules/dealer/dealer.routes';
 import checkoutRoutes from './modules/checkout/checkout.routes';
 
@@ -24,6 +25,7 @@ export function createApp() {
   // MODULE 2 — garage + fitment-filtered catalog
   app.use('/api/garage', garageRoutes);
   app.use('/api/products', productRoutes);
+  app.use('/api/machines', machineRoutes);
   // MODULE 3 — dealer portal (role-gated inside the router)
   app.use('/api/dealer', dealerRoutes);
   // MODULE 4 — checkout with job-referenced order metadata

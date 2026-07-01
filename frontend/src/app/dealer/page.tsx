@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * MODULE 3 — /dealer route. The high-speed B2B portal. Client-side we redirect
- * non-dealers away; the backend independently 403s every /api/dealer call, so
- * the data is safe regardless of what the client renders.
+ * MODUL 3 — /dealer (Forhandler-portal). Den hurtige B2B-portal. På klienten
+ * sender vi ikke-forhandlere væk; backend 403'er selvstændigt hvert
+ * /api/dealer-kald, så data er sikre uanset hvad klienten viser.
  */
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -22,47 +22,47 @@ export default function DealerPortalPage() {
     if (!loading && !isDealer) router.replace('/');
   }, [loading, isDealer, router]);
 
-  if (loading) return <p className="text-steel-500">Loading…</p>;
+  if (loading) return <p className="text-gray-500">Indlæser…</p>;
   if (!isDealer) return null;
 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold text-steel-800">Dealer Portal</h1>
-        <p className="text-sm text-steel-500">
-          High-volume ordering with live tier pricing, OEM cross-referencing and CSV import.
+        <h1 className="font-display text-2xl font-bold text-gray-900">Forhandler-portal</h1>
+        <p className="text-sm text-gray-500">
+          Højvolumen-bestilling med live tier-priser, OEM-krydsreference og CSV-import.
         </p>
       </header>
 
       <OemLookupBar />
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-steel-200">
+      {/* Faner */}
+      <div className="flex gap-1 border-b border-gray-200">
         {(['quick', 'csv'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+            className={`-mb-px border-b-2 px-4 py-2 font-display text-sm font-medium uppercase tracking-wide ${
               tab === t
-                ? 'border-safety-500 text-steel-800'
-                : 'border-transparent text-steel-400 hover:text-steel-600'
+                ? 'border-brand-green text-gray-900'
+                : 'border-transparent text-gray-400 hover:text-gray-600'
             }`}
           >
-            {t === 'quick' ? 'Quick Order Matrix' : 'CSV Bulk Upload'}
+            {t === 'quick' ? 'Hurtig ordre' : 'CSV-masseupload'}
           </button>
         ))}
       </div>
 
       {tab === 'quick' ? (
-        <QuickOrderMatrix onAddToCart={(lines) => console.log('add to cart', lines)} />
+        <QuickOrderMatrix onAddToCart={(lines) => console.log('læg i kurv', lines)} />
       ) : (
-        <CsvUploader onImport={(rows) => console.log('import rows', rows)} />
+        <CsvUploader onImport={(rows) => console.log('importér rækker', rows)} />
       )}
     </div>
   );
 }
 
-/** Inline OEM cross-reference lookup — the fastest path to a SKU. */
+/** Inline OEM-krydsreference — den hurtigste vej til et varenummer. */
 function OemLookupBar() {
   const [value, setValue] = useState('');
   const [result, setResult] = useState<OemLookupResult | null>(null);
@@ -79,49 +79,51 @@ function OemLookupBar() {
   };
 
   return (
-    <div className="rounded-lg border border-steel-200 bg-white p-4">
-      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-steel-400">
-        OEM cross-reference
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <label className="mb-1 block font-display text-xs font-semibold uppercase tracking-wide text-gray-500">
+        OEM-krydsreference
       </label>
       <div className="flex gap-2">
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && lookup()}
-          placeholder="Enter manufacturer OEM number (e.g. 227-6949)"
-          className="flex-1 rounded border border-steel-300 px-3 py-2 font-mono focus:border-safety-500 focus:outline-none"
+          placeholder="Indtast producentens OEM-nummer (fx 227-6949)"
+          className="flex-1 rounded border border-gray-300 px-3 py-2 font-mono focus:border-brand-green focus:outline-none"
         />
         <button
           onClick={lookup}
           disabled={busy}
-          className="rounded bg-steel-800 px-4 py-2 text-sm font-medium text-white hover:bg-steel-700 disabled:opacity-50"
+          className="rounded bg-brand-dark px-4 py-2 font-display text-sm font-medium uppercase tracking-wide text-white hover:bg-black disabled:opacity-50"
         >
-          {busy ? 'Looking up…' : 'Find SKU'}
+          {busy ? 'Slår op…' : 'Find varenr.'}
         </button>
       </div>
 
       {result && (
         <div className="mt-3 text-sm">
           {result.matched ? (
-            <div className="flex flex-wrap items-center gap-3 rounded bg-steel-50 px-3 py-2">
-              <span className="font-mono font-semibold text-steel-800">{result.sku}</span>
-              <span className="text-steel-600">{result.title}</span>
+            <div className="flex flex-wrap items-center gap-3 rounded bg-brand-bar px-3 py-2">
+              <span className="font-mono font-semibold text-gray-900">{result.sku}</span>
+              <span className="text-gray-600">{result.title}</span>
               {result.manufacturer && (
-                <span className="rounded bg-steel-200 px-2 py-0.5 text-xs text-steel-600">
+                <span className="rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
                   {result.manufacturer}
                 </span>
               )}
               <span
                 className={`rounded px-2 py-0.5 text-xs font-medium ${
-                  result.inStock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                  result.inStock
+                    ? 'bg-brand-green/15 text-brand-green-dark'
+                    : 'bg-brand-red/10 text-brand-red'
                 }`}
               >
-                {result.inStock ? `In stock (${result.availableStock})` : 'Out of stock'}
+                {result.inStock ? `På lager (${result.availableStock})` : 'Ikke på lager'}
               </span>
             </div>
           ) : (
-            <p className="rounded bg-red-50 px-3 py-2 text-red-700">
-              No internal SKU found for “{result.oemNumber}”.
+            <p className="rounded bg-brand-red/5 px-3 py-2 text-brand-red">
+              Intet varenummer fundet for “{result.oemNumber}”.
             </p>
           )}
         </div>

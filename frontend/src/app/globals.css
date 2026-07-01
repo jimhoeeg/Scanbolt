@@ -7,10 +7,15 @@
 }
 
 body {
-  @apply bg-steel-50 text-steel-800 antialiased;
+  @apply bg-white text-gray-800 antialiased;
 }
 
-/* Dense, tabular numerals for dealer data grids. */
+/* Tætte, tabulære tal til forhandler-datagrids. */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* Versal-navigation som på det rigtige site. */
+.nav-link {
+  @apply font-display text-sm font-medium uppercase tracking-wide text-gray-700 transition-colors hover:text-brand-green;
 }

@@ -1,35 +1,30 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * Rugged industrial palette: steel greys, a hi-vis "safety amber" accent for
- * primary dealer actions, and generous data-density defaults.
+ * Scanbolt brand theme — afledt af det rigtige site.
+ *  - brand.red   : logoets "Bolt", UNDERVOGN-label, nyhedsbrev-knap (mursten-rød)
+ *  - brand.green : aktiv navigation, kurv, "FIND PRODUKTER" (græsgrøn)
+ *  - brand.dark  : footer / mørke sektioner (næsten sort)
+ * Skrift: Roboto (brødtekst) + Roboto Condensed (nav/overskrifter i versaler).
  */
 const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        steel: {
-          50: '#f5f6f7',
-          100: '#e2e5e9',
-          200: '#c5cbd3',
-          300: '#9aa4b1',
-          400: '#6b7684',
-          500: '#4a5563',
-          600: '#374151',
-          700: '#28303b',
-          800: '#1b2129',
-          900: '#11161c',
-        },
-        safety: {
-          400: '#ffc233',
-          500: '#f5a300', // primary accent (hi-vis amber)
-          600: '#c98400',
+        brand: {
+          red: '#b0261c',
+          'red-dark': '#8e1e16',
+          green: '#6cb33f',
+          'green-dark': '#579a2e',
+          dark: '#141414',
+          darker: '#0d0d0d',
+          bar: '#f2f2f2',
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        sans: ['Roboto', 'system-ui', 'Arial', 'sans-serif'],
+        display: ['"Roboto Condensed"', 'Roboto', 'system-ui', 'sans-serif'],
       },
     },
   },

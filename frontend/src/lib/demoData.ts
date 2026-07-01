@@ -111,6 +111,16 @@ export function demoProductsForMachine(machineId: string) {
   return { machineId, parts: skus.map((s) => ({ ...PARTS[s] })) };
 }
 
+/** Alle maskiner (til maskinvælgeren i headeren). */
+export function demoMachines() {
+  return Object.values(MACHINES).map((m) => ({ ...m }));
+}
+
+/** Hele kataloget (til produktoversigten uden valgt maskine). */
+export function demoAllProducts() {
+  return { parts: Object.values(PARTS).map((p) => ({ ...p })) };
+}
+
 // --- MODULE 3/4: pricing, quick order, oem, csv ---------------------
 function priceLine(sku: string, quantity: number): ResolvedLine {
   const part = PARTS[sku];

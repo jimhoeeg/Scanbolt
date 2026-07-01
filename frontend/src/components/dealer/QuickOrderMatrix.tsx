@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * MODULE 3 (frontend) — Quick Order Matrix.
- * A dense, keyboard-friendly grid where dealers type SKUs + quantities.
- * Rows are added dynamically (typing in the last empty row spawns a new one),
- * and a debounced call to /api/dealer/quick-order validates stock + prices
- * every line in real time.
+ * MODUL 3 (frontend) — Hurtig-ordre-matrix.
+ * Et tæt, tastaturvenligt grid hvor forhandlere taster varenumre + antal.
+ * Rækker tilføjes dynamisk (når man skriver i sidste tomme række), og et
+ * debouncet kald til /api/dealer/quick-order validerer lager + priser i
+ * realtid for hver linje.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
@@ -14,11 +14,13 @@ import type { ResolvedLine } from '@/lib/types';
 interface Row {
   id: string;
   sku: string;
-  quantity: string; // kept as string for controlled input
+  quantity: string;
 }
 
 let rowSeq = 0;
 const newRow = (): Row => ({ id: `r${rowSeq++}`, sku: '', quantity: '' });
+
+const kr = (n: number) => n.toLocaleString('da-DK', { minimumFractionDigits: 2 });
 
 export function QuickOrderMatrix({ onAddToCart }: { onAddToCart?: (lines: ResolvedLine[]) => void }) {
   const [rows, setRows] = useState<Row[]>([newRow(), newRow(), newRow()]);
@@ -26,7 +28,6 @@ export function QuickOrderMatrix({ onAddToCart }: { onAddToCart?: (lines: Resolv
   const [validating, setValidating] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Lines that actually have a SKU + positive quantity.
   const activeLines = useMemo(
     () =>
       rows
@@ -35,7 +36,6 @@ export function QuickOrderMatrix({ onAddToCart }: { onAddToCart?: (lines: Resolv
     [rows],
   );
 
-  // Debounced real-time validation/pricing.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (activeLines.length === 0) {
@@ -50,7 +50,7 @@ export function QuickOrderMatrix({ onAddToCart }: { onAddToCart?: (lines: Resolv
         for (const item of items) map[item.sku] = item;
         setResolved(map);
       } catch {
-        /* leave previous state; a transient error shouldn't clear the grid */
+        /* behold tidligere state ved forbigående fejl */
       } finally {
         setValidating(false);
       }
@@ -63,7 +63,6 @@ export function QuickOrderMatrix({ onAddToCart }: { onAddToCart?: (lines: Resolv
   const updateRow = useCallback((id: string, patch: Partial<Row>) => {
     setRows((prev) => {
       const next = prev.map((r) => (r.id === id ? { ...r, ...patch } : r));
-      // Auto-append a fresh row when the user starts filling the last one.
       const last = next[next.length - 1];
       if (last.sku.trim() || last.quantity.trim()) next.push(newRow());
       return next;
@@ -75,8 +74,7 @@ export function QuickOrderMatrix({ onAddToCart }: { onAddToCart?: (lines: Resolv
   }, []);
 
   const grandTotal = useMemo(
-    () =>
-      Object.values(resolved).reduce((sum, l) => (l.inStock ? sum + l.lineTotal : sum), 0),
+    () => Object.values(resolved).reduce((sum, l) => (l.inStock ? sum + l.lineTotal : sum), 0),
     [resolved],
   );
 
@@ -86,23 +84,25 @@ export function QuickOrderMatrix({ onAddToCart }: { onAddToCart?: (lines: Resolv
   );
 
   return (
-    <div className="rounded-lg border border-steel-200 bg-white">
-      <div className="flex items-center justify-between border-b border-steel-100 px-4 py-3">
-        <h2 className="font-bold text-steel-800">Quick Order Matrix</h2>
-        <span className="text-xs text-steel-400">{validating ? 'Validating…' : 'Live pricing'}</span>
+    <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+        <h2 className="font-display font-bold uppercase tracking-wide text-gray-900">
+          Hurtig ordre
+        </h2>
+        <span className="text-xs text-gray-400">{validating ? 'Validerer…' : 'Live priser'}</span>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm tabular">
           <thead>
-            <tr className="border-b border-steel-100 bg-steel-50 text-left text-xs uppercase tracking-wide text-steel-400">
-              <th className="px-4 py-2 font-medium">SKU</th>
-              <th className="w-24 px-2 py-2 font-medium">Qty</th>
-              <th className="px-4 py-2 font-medium">Description</th>
-              <th className="px-2 py-2 text-right font-medium">Unit (net)</th>
-              <th className="px-2 py-2 text-right font-medium">Disc.</th>
-              <th className="px-2 py-2 text-right font-medium">Line total</th>
-              <th className="px-2 py-2 font-medium">Status</th>
+            <tr className="border-b border-gray-100 bg-brand-bar text-left font-display text-xs uppercase tracking-wide text-gray-500">
+              <th className="px-4 py-2 font-semibold">Varenr.</th>
+              <th className="w-24 px-2 py-2 font-semibold">Antal</th>
+              <th className="px-4 py-2 font-semibold">Beskrivelse</th>
+              <th className="px-2 py-2 text-right font-semibold">Stk. (netto)</th>
+              <th className="px-2 py-2 text-right font-semibold">Rabat</th>
+              <th className="px-2 py-2 text-right font-semibold">Linjetotal</th>
+              <th className="px-2 py-2 font-semibold">Status</th>
               <th className="w-8 px-2 py-2" />
             </tr>
           </thead>
@@ -113,14 +113,14 @@ export function QuickOrderMatrix({ onAddToCart }: { onAddToCart?: (lines: Resolv
               return (
                 <tr
                   key={row.id}
-                  className={`border-b border-steel-50 ${hasError ? 'bg-red-50' : ''}`}
+                  className={`border-b border-gray-50 ${hasError ? 'bg-brand-red/5' : ''}`}
                 >
                   <td className="px-4 py-1.5">
                     <input
                       value={row.sku}
                       onChange={(e) => updateRow(row.id, { sku: e.target.value.toUpperCase() })}
-                      placeholder="e.g. FD-CAT-320D"
-                      className="w-full rounded border border-steel-200 px-2 py-1.5 font-mono uppercase focus:border-safety-500 focus:outline-none"
+                      placeholder="fx FD-CAT-320D"
+                      className="w-full rounded border border-gray-200 px-2 py-1.5 font-mono uppercase focus:border-brand-green focus:outline-none"
                     />
                   </td>
                   <td className="px-2 py-1.5">
@@ -131,29 +131,29 @@ export function QuickOrderMatrix({ onAddToCart }: { onAddToCart?: (lines: Resolv
                       }
                       inputMode="numeric"
                       placeholder="0"
-                      className="w-full rounded border border-steel-200 px-2 py-1.5 text-right focus:border-safety-500 focus:outline-none"
+                      className="w-full rounded border border-gray-200 px-2 py-1.5 text-right focus:border-brand-green focus:outline-none"
                     />
                   </td>
-                  <td className="px-4 py-1.5 text-steel-600">{r?.title ?? '—'}</td>
-                  <td className="px-2 py-1.5 text-right text-steel-700">
-                    {r ? `$${r.netUnitPrice.toFixed(2)}` : '—'}
+                  <td className="px-4 py-1.5 text-gray-600">{r?.title ?? '—'}</td>
+                  <td className="px-2 py-1.5 text-right text-gray-700">
+                    {r ? `${kr(r.netUnitPrice)} kr.` : '—'}
                   </td>
-                  <td className="px-2 py-1.5 text-right text-safety-600">
+                  <td className="px-2 py-1.5 text-right text-brand-green-dark">
                     {r && r.discountPct > 0 ? `-${r.discountPct.toFixed(1)}%` : '—'}
                   </td>
-                  <td className="px-2 py-1.5 text-right font-semibold text-steel-800">
-                    {r?.inStock ? `$${r.lineTotal.toFixed(2)}` : '—'}
+                  <td className="px-2 py-1.5 text-right font-semibold text-gray-900">
+                    {r?.inStock ? `${kr(r.lineTotal)} kr.` : '—'}
                   </td>
                   <td className="px-2 py-1.5">
                     {!r ? (
-                      <span className="text-steel-300">—</span>
+                      <span className="text-gray-300">—</span>
                     ) : r.error ? (
-                      <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                        {r.error}
+                      <span className="rounded bg-brand-red/10 px-2 py-0.5 text-xs font-medium text-brand-red">
+                        {r.error === 'SKU not found' ? 'Varenr. ukendt' : r.error.replace('Only', 'Kun').replace('in stock', 'på lager')}
                       </span>
                     ) : (
-                      <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                        In stock ({r.availableStock})
+                      <span className="rounded bg-brand-green/15 px-2 py-0.5 text-xs font-medium text-brand-green-dark">
+                        På lager ({r.availableStock})
                       </span>
                     )}
                   </td>
@@ -161,8 +161,8 @@ export function QuickOrderMatrix({ onAddToCart }: { onAddToCart?: (lines: Resolv
                     {(row.sku || row.quantity) && (
                       <button
                         onClick={() => removeRow(row.id)}
-                        className="text-steel-300 hover:text-red-500"
-                        aria-label="Remove row"
+                        className="text-gray-300 hover:text-brand-red"
+                        aria-label="Fjern række"
                       >
                         ✕
                       </button>
@@ -175,21 +175,21 @@ export function QuickOrderMatrix({ onAddToCart }: { onAddToCart?: (lines: Resolv
         </table>
       </div>
 
-      <div className="flex items-center justify-between border-t border-steel-100 px-4 py-3">
-        <p className="text-sm text-steel-500">
-          {validLines.length} line{validLines.length === 1 ? '' : 's'} ready
+      <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3">
+        <p className="text-sm text-gray-500">
+          {validLines.length} linje{validLines.length === 1 ? '' : 'r'} klar
         </p>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-steel-500">
+          <span className="text-sm text-gray-500">
             Subtotal:{' '}
-            <span className="text-base font-bold text-steel-800">${grandTotal.toFixed(2)}</span>
+            <span className="font-display text-base font-bold text-gray-900">{kr(grandTotal)} kr.</span>
           </span>
           <button
             disabled={validLines.length === 0}
             onClick={() => onAddToCart?.(validLines)}
-            className="rounded bg-safety-500 px-4 py-2 text-sm font-semibold text-steel-900 hover:bg-safety-400 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded bg-brand-green px-4 py-2 font-display text-sm font-semibold uppercase tracking-wide text-white hover:bg-brand-green-dark disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Add {validLines.length} to cart
+            Læg {validLines.length} i kurv
           </button>
         </div>
       </div>

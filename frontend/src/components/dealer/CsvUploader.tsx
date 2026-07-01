@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * MODULE 3 (frontend) — Drag-and-drop CSV uploader.
- * Accepts `sku,quantity` or `oem_number,quantity` files, posts to
- * /api/dealer/upload-csv, then renders a per-row result table with invalid
- * rows highlighted (the backend resolves OEM numbers to SKUs for us).
+ * MODUL 3 (frontend) — Træk-og-slip CSV-upload.
+ * Modtager `sku,antal` eller `oem_nummer,antal`, sender til
+ * /api/dealer/upload-csv og viser en per-række-tabel hvor ugyldige rækker
+ * fremhæves (backend slår OEM-numre op til varenumre for os).
  */
 import { useCallback, useRef, useState } from 'react';
 import { api } from '@/lib/api';
@@ -17,6 +17,14 @@ interface UploadResult {
   rows: CsvRow[];
 }
 
+const ERR_DA: Record<string, string> = {
+  'Missing SKU/OEM number': 'Mangler varenr./OEM-nr.',
+  'Quantity must be a positive integer': 'Antal skal være et positivt heltal',
+  'Quantity is not a number': 'Antal er ikke et tal',
+  'SKU not found': 'Varenr. ikke fundet',
+  'OEM number not found': 'OEM-nummer ikke fundet',
+};
+
 export function CsvUploader({ onImport }: { onImport?: (rows: CsvRow[]) => void }) {
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -27,7 +35,7 @@ export function CsvUploader({ onImport }: { onImport?: (rows: CsvRow[]) => void 
   const handleFile = useCallback(async (file: File) => {
     setError(null);
     if (!file.name.toLowerCase().endsWith('.csv')) {
-      setError('Please upload a .csv file.');
+      setError('Upload venligst en .csv-fil.');
       return;
     }
     setBusy(true);
@@ -55,7 +63,7 @@ export function CsvUploader({ onImport }: { onImport?: (rows: CsvRow[]) => void 
 
   return (
     <div className="space-y-4">
-      {/* Drop zone */}
+      {/* Drop-zone */}
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -67,9 +75,7 @@ export function CsvUploader({ onImport }: { onImport?: (rows: CsvRow[]) => void 
         role="button"
         tabIndex={0}
         className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 text-center transition ${
-          dragging
-            ? 'border-safety-500 bg-safety-400/10'
-            : 'border-steel-300 bg-white hover:border-steel-400'
+          dragging ? 'border-brand-green bg-brand-green/5' : 'border-gray-300 bg-white hover:border-gray-400'
         }`}
       >
         <input
@@ -82,75 +88,73 @@ export function CsvUploader({ onImport }: { onImport?: (rows: CsvRow[]) => void 
             if (file) void handleFile(file);
           }}
         />
-        <div className="mb-2 text-3xl text-steel-300">⇪</div>
-        <p className="font-medium text-steel-700">
-          {busy ? 'Parsing…' : 'Drag & drop a CSV, or click to browse'}
+        <div className="mb-2 text-3xl text-gray-300">⇪</div>
+        <p className="font-medium text-gray-700">
+          {busy ? 'Behandler…' : 'Træk en CSV-fil hertil, eller klik for at vælge'}
         </p>
-        <p className="mt-1 text-xs text-steel-400">
-          Columns: <code className="font-mono">sku,quantity</code> or{' '}
-          <code className="font-mono">oem_number,quantity</code>
+        <p className="mt-1 text-xs text-gray-400">
+          Kolonner: <code className="font-mono">sku,antal</code> eller{' '}
+          <code className="font-mono">oem_nummer,antal</code>
         </p>
       </div>
 
-      {error && (
-        <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-      )}
+      {error && <p className="rounded bg-brand-red/5 px-3 py-2 text-sm text-brand-red">{error}</p>}
 
-      {/* Result summary + per-row table */}
+      {/* Resultat */}
       {result && (
-        <div className="rounded-lg border border-steel-200 bg-white">
-          <div className="flex items-center justify-between border-b border-steel-100 px-4 py-3">
+        <div className="rounded-lg border border-gray-200 bg-white">
+          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
             <div className="flex items-center gap-3 text-sm">
-              <span className="rounded bg-green-100 px-2 py-0.5 font-medium text-green-700">
-                {result.validCount} valid
+              <span className="rounded bg-brand-green/15 px-2 py-0.5 font-medium text-brand-green-dark">
+                {result.validCount} gyldige
               </span>
               {result.invalidCount > 0 && (
-                <span className="rounded bg-red-100 px-2 py-0.5 font-medium text-red-700">
-                  {result.invalidCount} invalid
+                <span className="rounded bg-brand-red/10 px-2 py-0.5 font-medium text-brand-red">
+                  {result.invalidCount} ugyldige
                 </span>
               )}
-              <span className="text-steel-400">{result.totalRows} rows total</span>
+              <span className="text-gray-400">{result.totalRows} rækker i alt</span>
             </div>
             <button
               disabled={validRows.length === 0}
               onClick={() => onImport?.(validRows)}
-              className="rounded bg-safety-500 px-3 py-1.5 text-sm font-semibold text-steel-900 hover:bg-safety-400 disabled:opacity-40"
+              className="rounded bg-brand-green px-3 py-1.5 font-display text-sm font-semibold uppercase tracking-wide text-white hover:bg-brand-green-dark disabled:opacity-40"
             >
-              Import {validRows.length} to cart
+              Importér {validRows.length} til kurv
             </button>
           </div>
 
           <div className="max-h-80 overflow-auto">
             <table className="w-full text-sm tabular">
-              <thead className="sticky top-0 bg-steel-50 text-left text-xs uppercase tracking-wide text-steel-400">
+              <thead className="sticky top-0 bg-brand-bar text-left font-display text-xs uppercase tracking-wide text-gray-500">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Line</th>
-                  <th className="px-2 py-2 font-medium">Input</th>
-                  <th className="px-2 py-2 font-medium">Resolved SKU</th>
-                  <th className="px-4 py-2 font-medium">Description</th>
-                  <th className="w-16 px-2 py-2 text-right font-medium">Qty</th>
-                  <th className="px-2 py-2 font-medium">Status</th>
+                  <th className="px-4 py-2 font-semibold">Linje</th>
+                  <th className="px-2 py-2 font-semibold">Input</th>
+                  <th className="px-2 py-2 font-semibold">Varenr.</th>
+                  <th className="px-4 py-2 font-semibold">Beskrivelse</th>
+                  <th className="w-16 px-2 py-2 text-right font-semibold">Antal</th>
+                  <th className="px-2 py-2 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {result.rows.map((row) => (
                   <tr
                     key={row.line}
-                    className={`border-b border-steel-50 ${row.resolved ? '' : 'bg-red-50'}`}
+                    className={`border-b border-gray-50 ${row.resolved ? '' : 'bg-brand-red/5'}`}
                   >
-                    <td className="px-4 py-1.5 text-steel-400">{row.line}</td>
-                    <td className="px-2 py-1.5 font-mono text-steel-600">{row.identifier || '—'}</td>
-                    <td className="px-2 py-1.5 font-mono text-steel-800">{row.sku ?? '—'}</td>
-                    <td className="px-4 py-1.5 text-steel-600">{row.title ?? '—'}</td>
+                    <td className="px-4 py-1.5 text-gray-400">{row.line}</td>
+                    <td className="px-2 py-1.5 font-mono text-gray-600">{row.identifier || '—'}</td>
+                    <td className="px-2 py-1.5 font-mono text-gray-900">{row.sku ?? '—'}</td>
+                    <td className="px-4 py-1.5 text-gray-600">{row.title ?? '—'}</td>
                     <td className="px-2 py-1.5 text-right">{row.quantity || '—'}</td>
                     <td className="px-2 py-1.5">
                       {row.resolved ? (
-                        <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                          OK{row.identifierType === 'oem_number' ? ' (OEM→SKU)' : ''}
+                        <span className="rounded bg-brand-green/15 px-2 py-0.5 text-xs font-medium text-brand-green-dark">
+                          OK{row.identifierType === 'oem_number' ? ' (OEM→varenr.)' : ''}
                         </span>
                       ) : (
-                        <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                          {row.error ?? 'Invalid'}
+                        <span className="rounded bg-brand-red/10 px-2 py-0.5 text-xs font-medium text-brand-red">
+                          {ERR_DA[row.error ?? ''] ?? row.error ?? 'Ugyldig'}
                         </span>
                       )}
                     </td>

@@ -5,14 +5,25 @@
 import type { CsvRow, GarageEntry, OemLookupResult, ResolvedLine } from './types';
 import {
   DEMO,
+  demoAllProducts,
   demoCheckout,
   demoGetGarage,
   demoLogin,
+  demoMachines,
   demoOemLookup,
   demoProductsForMachine,
   demoQuickOrder,
   demoUploadCsv,
 } from './demoData';
+
+export interface MachineOption {
+  id: string;
+  brand: string;
+  model: string;
+  yearFrom: number;
+  yearTo: number | null;
+  category: string;
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -55,6 +66,18 @@ export const api = {
       headers: authHeaders(),
     });
     return handle<{ machineId: string; parts: unknown[] }>(res);
+  },
+
+  async getAllProducts() {
+    if (DEMO) return demoAllProducts();
+    const res = await fetch(`${API_URL}/api/products`, { headers: authHeaders() });
+    return handle<{ parts: unknown[] }>(res);
+  },
+
+  async getMachines() {
+    if (DEMO) return { machines: demoMachines() };
+    const res = await fetch(`${API_URL}/api/machines`, { headers: authHeaders() });
+    return handle<{ machines: MachineOption[] }>(res);
   },
 
   // MODULE 3
