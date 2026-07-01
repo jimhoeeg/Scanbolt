@@ -11,6 +11,7 @@ import type { GarageEntry } from '@/lib/types';
 import { HEALTH_UI, fmtHours } from '@/lib/gamify';
 import { HealthRing } from './HealthRing';
 import { WearPanel } from './WearPanel';
+import { LogbookPanel } from './LogbookPanel';
 
 interface MachineCardProps {
   entry: GarageEntry;
@@ -45,6 +46,7 @@ export function MachineCard({
   const [editingHours, setEditingHours] = useState(false);
   const [hoursInput, setHoursInput] = useState(String(entry.currentHours ?? ''));
   const [showWear, setShowWear] = useState(false);
+  const [showLog, setShowLog] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const saveHours = async () => {
@@ -161,6 +163,18 @@ export function MachineCard({
           {showWear && <WearPanel garageId={entry.id} onShop={() => onShopParts(entry)} />}
         </div>
       )}
+
+      {/* Fase 4 — logbog */}
+      <div className="border-b border-gray-100">
+        <button
+          onClick={() => setShowLog((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-gray-50"
+        >
+          <span className="text-sm font-medium text-gray-700">📋 Vedligeholds-logbog</span>
+          <span className="text-xs text-brand-red">{showLog ? 'Skjul' : 'Åbn'}</span>
+        </button>
+        {showLog && <LogbookPanel garageId={entry.id} />}
+      </div>
 
       {/* Flåde-metadata — kun forhandlere */}
       {isDealer && (entry.customerName || entry.jobId) && (

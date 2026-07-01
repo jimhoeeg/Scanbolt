@@ -56,6 +56,55 @@ export interface GarageEntry {
   topWear: TopWear | null;
 }
 
+export type MaintenanceType = 'service' | 'repair' | 'inspection' | 'part_replaced' | 'note';
+
+export interface MaintenanceEntry {
+  id: string;
+  type: MaintenanceType;
+  title: string;
+  hours: number | null;
+  sku: string | null;
+  loggedAt: string;
+}
+
+export interface MaintenanceLog {
+  entries: MaintenanceEntry[];
+  serviceCount: number;
+  streak: number;
+}
+
+export interface Achievement {
+  key: string;
+  icon: string;
+  label: string;
+  description: string;
+  unlocked: boolean;
+}
+
+export interface GarageSummary {
+  machineCount: number;
+  servicedCount: number;
+  healthyCount: number;
+  achievements: Achievement[];
+}
+
+export interface XpEvent {
+  action: string;
+  points: number;
+  ref: string | null;
+  createdAt: string;
+}
+
+export interface UserProgress {
+  xp: number;
+  rank: string;
+  rankKey: string;
+  nextRank: string | null;
+  xpToNext: number;
+  progressPct: number;
+  recent: XpEvent[];
+}
+
 export interface DealerStatus {
   tier: 'bronze' | 'silver' | 'gold' | 'platinum';
   baseDiscount: number;

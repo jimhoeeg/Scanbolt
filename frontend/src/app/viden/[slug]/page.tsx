@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { KNOWLEDGE, getArticle } from '@/lib/knowledge';
+import { GuideReadTracker } from '@/components/knowledge/GuideReadTracker';
 
 /**
  * /viden/[slug] — enkelt vidensartikel. generateStaticParams giver en statisk
@@ -23,6 +24,8 @@ export default function ArticlePage({ params }: { params: { slug: string } }) {
 
   return (
     <article className="mx-auto max-w-3xl">
+      {/* Fase 5 — giver XP for at læse guiden (én gang pr. artikel). */}
+      <GuideReadTracker slug={article.slug} />
       <Link href="/viden" className="text-sm font-semibold text-brand-red hover:underline">
         ← Al viden
       </Link>

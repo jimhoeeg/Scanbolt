@@ -1,5 +1,5 @@
 -- =====================================================================
--- Seed data — run AFTER all migrations (001 → 007).
+-- Seed data — run AFTER all migrations (001 → 009).
 -- Passwords below are bcrypt hashes of 'password123' (demo only).
 -- =====================================================================
 
@@ -72,3 +72,26 @@ SELECT g.id,
        CASE m.model WHEN '320D' THEN 5900 WHEN 'PC200-8' THEN 9000 ELSE 1720 END
   FROM user_garages g
   JOIN machines m ON m.id = g.machine_id;
+
+-- --- Vedligeholds-logbog (Fase 4) ------------------------------------
+-- Service-historik pr. maskine, så streaks og tidslinje har data.
+INSERT INTO maintenance_log (garage_id, user_id, type, title, hours)
+SELECT g.id, g.user_id, 'service', 'Rutineservice', v.hours
+  FROM user_garages g
+  JOIN machines m ON m.id = g.machine_id
+  JOIN (VALUES
+    ('320D', 4950), ('320D', 5400), ('320D', 5900),
+    ('PC200-8', 8500), ('PC200-8', 9000),
+    ('E35', 1500), ('E35', 1600), ('E35', 1720)
+  ) AS v(model, hours) ON v.model = m.model;
+
+-- --- XP-events (Fase 5) ----------------------------------------------
+INSERT INTO xp_events (user_id, action, points) VALUES
+  ('22222222-2222-2222-2222-222222222222', 'machine_added',  50),
+  ('22222222-2222-2222-2222-222222222222', 'machine_added',  50),
+  ('22222222-2222-2222-2222-222222222222', 'service_logged', 40),
+  ('22222222-2222-2222-2222-222222222222', 'service_logged', 40),
+  ('22222222-2222-2222-2222-222222222222', 'hours_logged',   10),
+  ('11111111-1111-1111-1111-111111111111', 'machine_added',  50),
+  ('11111111-1111-1111-1111-111111111111', 'service_logged', 40),
+  ('11111111-1111-1111-1111-111111111111', 'hours_logged',   10);

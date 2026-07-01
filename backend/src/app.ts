@@ -11,6 +11,7 @@ import productRoutes from './modules/products/products.routes';
 import machineRoutes from './modules/machines/machines.routes';
 import dealerRoutes from './modules/dealer/dealer.routes';
 import checkoutRoutes from './modules/checkout/checkout.routes';
+import progressRoutes from './modules/progress/progress.routes';
 
 export function createApp() {
   const app = express();
@@ -30,6 +31,8 @@ export function createApp() {
   app.use('/api/dealer', dealerRoutes);
   // MODULE 4 — checkout with job-referenced order metadata
   app.use('/api/checkout', checkoutRoutes);
+  // GAMIFICATION Fase 5 — XP / niveau
+  app.use('/api/progress', progressRoutes);
 
   // 404 fallback
   app.use((_req, res) => res.status(404).json({ error: 'Not found' }));

@@ -14,6 +14,8 @@ import type { GarageEntry } from '@/lib/types';
 import { MachineCard } from './MachineCard';
 import { FactBox } from '@/components/FactBox';
 import { KNOWLEDGE } from '@/lib/knowledge';
+import { ProgressHeader } from './ProgressHeader';
+import { MilestoneStrip } from './MilestoneStrip';
 
 export function GarageDashboard() {
   const { isDealer, isAuthenticated } = useAuth();
@@ -81,8 +83,12 @@ export function GarageDashboard() {
   if (error) return <p className="text-brand-red">Kunne ikke hente garagen: {error}</p>;
 
   return (
-    <section>
-      <header className="mb-6 flex items-end justify-between">
+    <section className="space-y-6">
+      {/* Fase 5 — XP/niveau + Fase 4 — milepæle */}
+      <ProgressHeader />
+      <MilestoneStrip />
+
+      <header className="flex items-end justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-gray-900">
             {isDealer ? 'Flåde-garage' : 'Min Garage'}

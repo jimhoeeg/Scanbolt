@@ -5,7 +5,17 @@
  * also carries a health score (service hours) and the worst wearing component.
  */
 import { query, queryOne } from '../../db/pool';
-import { GarageEntry, TopWear, WearComponent } from '../../types';
+import {
+  Achievement,
+  GarageEntry,
+  GarageSummary,
+  MaintenanceEntry,
+  MaintenanceLog,
+  MaintenanceType,
+  TopWear,
+  WearComponent,
+} from '../../types';
+import { awardXp } from '../progress/progress.service';
 import {
   DEFAULT_SERVICE_INTERVAL,
   healthScore,
@@ -190,6 +200,7 @@ export async function addToGarage(
     `INSERT INTO machine_service_status (garage_id) VALUES ($1) ON CONFLICT DO NOTHING`,
     [inserted.id],
   );
+  await awardXp(userId, 'machine_added', inserted.id);
 
   const entry = await getEntry(userId, inserted.id, isDealer);
   return entry!;
@@ -224,22 +235,27 @@ export async function updateHours(
      DO UPDATE SET current_hours = EXCLUDED.current_hours, updated_at = now()`,
     [garageId, Math.max(0, Math.floor(currentHours))],
   );
+  await awardXp(userId, 'hours_logged');
 
   const entry = await getEntry(userId, garageId, isDealer);
   return entry!;
 }
 
-/** Fase 1: marker som serviceret (nulstil timer-siden-service). */
+/** Fase 1+4: marker som serviceret (nulstil timer-siden-service + log service). */
 export async function markServiced(
   userId: string,
   garageId: string,
   isDealer: boolean,
 ): Promise<GarageEntry> {
-  const owns = await queryOne('SELECT 1 FROM user_garages WHERE id = $1 AND user_id = $2', [
-    garageId,
-    userId,
-  ]);
-  if (!owns) throw Object.assign(new Error('Garage entry not found'), { status: 404 });
+  const meta = await queryOne<{ current_hours: number | null }>(
+    `SELECT s.current_hours
+       FROM user_garages g
+       LEFT JOIN machine_service_status s ON s.garage_id = g.id
+      WHERE g.id = $1 AND g.user_id = $2`,
+    [garageId, userId],
+  );
+  if (!meta) throw Object.assign(new Error('Garage entry not found'), { status: 404 });
+  const currentHours = meta.current_hours ?? 0;
 
   await query(
     `UPDATE machine_service_status
@@ -247,6 +263,14 @@ export async function markServiced(
       WHERE garage_id = $1`,
     [garageId],
   );
+
+  // Fase 4: opret automatisk en post i logbogen.
+  await query(
+    `INSERT INTO maintenance_log (garage_id, user_id, type, title, hours)
+     VALUES ($1, $2, 'service', 'Service udført', $3)`,
+    [garageId, userId, currentHours > 0 ? currentHours : null],
+  );
+  await awardXp(userId, 'service_logged', garageId);
 
   const entry = await getEntry(userId, garageId, isDealer);
   return entry!;
@@ -269,4 +293,157 @@ export async function getWear(
   const currentHours = row.current_hours ?? 0;
   const components = currentHours > 0 ? await getWearForMachine(row.machine_id, currentHours) : [];
   return { currentHours, components };
+}
+
+// =====================================================================
+// Fase 4 — vedligeholds-logbog, streaks & milepæle
+// =====================================================================
+
+interface MaintRow {
+  id: string;
+  type: MaintenanceType;
+  title: string;
+  hours: number | null;
+  sku: string | null;
+  logged_at: string;
+}
+
+function toMaintEntry(r: MaintRow): MaintenanceEntry {
+  return { id: r.id, type: r.type, title: r.title, hours: r.hours, sku: r.sku, loggedAt: r.logged_at };
+}
+
+/**
+ * På-tid-streak: antal på hinanden følgende services hvor timeintervallet
+ * mellem dem ikke oversteg serviceintervallet (bagfra og frem).
+ */
+function computeStreak(serviceHoursAsc: number[], interval: number): number {
+  let streak = 0;
+  for (let i = serviceHoursAsc.length - 1; i > 0; i--) {
+    if (serviceHoursAsc[i] - serviceHoursAsc[i - 1] <= interval) streak++;
+    else break;
+  }
+  return streak;
+}
+
+/** Hent logbog + serviceantal + streak for én garage-maskine. */
+export async function getMaintenanceLog(userId: string, garageId: string): Promise<MaintenanceLog> {
+  const meta = await queryOne<{ interval_hours: number }>(
+    `SELECT COALESCE(si.interval_hours, ${DEFAULT_SERVICE_INTERVAL}) AS interval_hours
+       FROM user_garages g
+       JOIN machines m ON m.id = g.machine_id
+       LEFT JOIN service_intervals si ON si.category = m.category
+      WHERE g.id = $1 AND g.user_id = $2`,
+    [garageId, userId],
+  );
+  if (!meta) throw Object.assign(new Error('Garage entry not found'), { status: 404 });
+
+  const rows = await query<MaintRow>(
+    `SELECT id, type, title, hours, sku, logged_at
+       FROM maintenance_log
+      WHERE garage_id = $1
+      ORDER BY logged_at DESC, hours DESC NULLS LAST`,
+    [garageId],
+  );
+
+  const serviceHours = rows
+    .filter((r) => r.type === 'service' && r.hours != null)
+    .map((r) => r.hours as number)
+    .sort((a, b) => a - b);
+
+  return {
+    entries: rows.map(toMaintEntry),
+    serviceCount: rows.filter((r) => r.type === 'service').length,
+    streak: computeStreak(serviceHours, meta.interval_hours),
+  };
+}
+
+export interface AddMaintenanceInput {
+  type: MaintenanceType;
+  title: string;
+  hours?: number | null;
+  sku?: string | null;
+}
+
+/** Tilføj en post til logbogen. */
+export async function addMaintenanceLog(
+  userId: string,
+  garageId: string,
+  input: AddMaintenanceInput,
+): Promise<MaintenanceLog> {
+  const owns = await queryOne('SELECT 1 FROM user_garages WHERE id = $1 AND user_id = $2', [
+    garageId,
+    userId,
+  ]);
+  if (!owns) throw Object.assign(new Error('Garage entry not found'), { status: 404 });
+
+  await query(
+    `INSERT INTO maintenance_log (garage_id, user_id, type, title, hours, sku)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [garageId, userId, input.type, input.title, input.hours ?? null, input.sku ?? null],
+  );
+  await awardXp(userId, 'log_added', garageId);
+
+  return getMaintenanceLog(userId, garageId);
+}
+
+/** Milepæls-katalog (Fase 4). */
+const ACHIEVEMENTS: Omit<Achievement, 'unlocked'>[] = [
+  { key: 'first_machine', icon: '🚜', label: 'Garage åbnet', description: 'Tilføj din første maskine' },
+  { key: 'hours_logged', icon: '⏱️', label: 'Timetal på plads', description: 'Log timetal på en maskine' },
+  { key: 'first_service', icon: '🔧', label: 'Første service', description: 'Registrér en service i logbogen' },
+  { key: 'on_time_streak', icon: '🔥', label: 'På-tid-stribe', description: 'To services på tid i træk' },
+  { key: 'all_healthy', icon: '✅', label: 'Hele flåden sund', description: 'Alle maskiner er sunde' },
+  { key: 'knowledge', icon: '📚', label: 'Videbegærlig', description: 'Læs en guide i Viden' },
+];
+
+/** Garage-resumé med milepæle (Fase 4). */
+export async function getSummary(userId: string, includeFleet: boolean): Promise<GarageSummary> {
+  const entries = await getGarage(userId, includeFleet);
+  const machineCount = entries.length;
+  const healthyCount = entries.filter((e) => e.healthStatus === 'healthy').length;
+  const anyHours = entries.some((e) => e.currentHours != null);
+
+  // Service-logs pr. maskine → bedste streak + samlet serviceantal.
+  const svc = await query<{ garage_id: string; hours: number; interval: number }>(
+    `SELECT g.id AS garage_id, ml.hours,
+            COALESCE(si.interval_hours, ${DEFAULT_SERVICE_INTERVAL}) AS interval
+       FROM maintenance_log ml
+       JOIN user_garages g ON g.id = ml.garage_id
+       JOIN machines m ON m.id = g.machine_id
+       LEFT JOIN service_intervals si ON si.category = m.category
+      WHERE ml.user_id = $1 AND ml.type = 'service' AND ml.hours IS NOT NULL
+      ORDER BY g.id, ml.hours ASC`,
+    [userId],
+  );
+
+  const byGarage = new Map<string, { hours: number[]; interval: number }>();
+  for (const r of svc) {
+    const g = byGarage.get(r.garage_id) ?? { hours: [], interval: r.interval };
+    g.hours.push(Number(r.hours));
+    byGarage.set(r.garage_id, g);
+  }
+  let bestStreak = 0;
+  for (const g of byGarage.values()) bestStreak = Math.max(bestStreak, computeStreak(g.hours, g.interval));
+  const servicedCount = svc.length;
+
+  const guideRead = await queryOne(
+    `SELECT 1 FROM xp_events WHERE user_id = $1 AND action = 'guide_read' LIMIT 1`,
+    [userId],
+  );
+
+  const unlocked: Record<string, boolean> = {
+    first_machine: machineCount >= 1,
+    hours_logged: anyHours,
+    first_service: servicedCount >= 1,
+    on_time_streak: bestStreak >= 2,
+    all_healthy: machineCount > 0 && healthyCount === machineCount,
+    knowledge: Boolean(guideRead),
+  };
+
+  return {
+    machineCount,
+    servicedCount,
+    healthyCount,
+    achievements: ACHIEVEMENTS.map((a) => ({ ...a, unlocked: unlocked[a.key] ?? false })),
+  };
 }

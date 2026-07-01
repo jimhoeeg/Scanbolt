@@ -2,13 +2,28 @@
  * Thin typed fetch wrapper around the Scanbolt API.
  * Injects the bearer token from localStorage and normalizes error handling.
  */
-import type { CsvRow, DealerStatus, GarageEntry, OemLookupResult, ResolvedLine, WearComponent } from './types';
+import type {
+  CsvRow,
+  DealerStatus,
+  GarageEntry,
+  GarageSummary,
+  MaintenanceLog,
+  MaintenanceType,
+  OemLookupResult,
+  ResolvedLine,
+  UserProgress,
+  WearComponent,
+} from './types';
 import {
   DEMO,
+  demoAddMaintenanceLog,
   demoAllProducts,
   demoCheckout,
   demoDealerStatus,
   demoGetGarage,
+  demoGetMaintenanceLog,
+  demoGetProgress,
+  demoGetSummary,
   demoGetWear,
   demoLogin,
   demoMachines,
@@ -16,9 +31,15 @@ import {
   demoOemLookup,
   demoProductsForMachine,
   demoQuickOrder,
+  demoTrackAction,
   demoUpdateHours,
   demoUploadCsv,
 } from './demoData';
+
+/** Fortæl XP-baren m.fl. at progressionen kan være ændret. */
+function notifyProgress(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('scanbolt:progress'));
+}
 
 export interface MachineOption {
   id: string;
@@ -86,22 +107,34 @@ export const api = {
 
   // GAMIFICATION Fase 1 — driftstimer & sundhed
   async updateHours(garageId: string, currentHours: number) {
-    if (DEMO) return demoUpdateHours(garageId, currentHours);
+    if (DEMO) {
+      const r = demoUpdateHours(garageId, currentHours);
+      notifyProgress();
+      return r;
+    }
     const res = await fetch(`${API_URL}/api/garage/${garageId}/hours`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ currentHours }),
     });
-    return handle<{ entry: GarageEntry }>(res);
+    const out = await handle<{ entry: GarageEntry }>(res);
+    notifyProgress();
+    return out;
   },
 
   async markServiced(garageId: string) {
-    if (DEMO) return demoMarkServiced(garageId);
+    if (DEMO) {
+      const r = demoMarkServiced(garageId);
+      notifyProgress();
+      return r;
+    }
     const res = await fetch(`${API_URL}/api/garage/${garageId}/service`, {
       method: 'POST',
       headers: authHeaders(),
     });
-    return handle<{ entry: GarageEntry }>(res);
+    const out = await handle<{ entry: GarageEntry }>(res);
+    notifyProgress();
+    return out;
   },
 
   // GAMIFICATION Fase 2 — slid-estimat
@@ -116,6 +149,61 @@ export const api = {
     if (DEMO) return demoDealerStatus();
     const res = await fetch(`${API_URL}/api/dealer/status`, { headers: authHeaders() });
     return handle<DealerStatus>(res);
+  },
+
+  // GAMIFICATION Fase 4 — vedligeholds-logbog & milepæle
+  async getMaintenanceLog(garageId: string) {
+    if (DEMO) return demoGetMaintenanceLog(garageId);
+    const res = await fetch(`${API_URL}/api/garage/${garageId}/log`, { headers: authHeaders() });
+    return handle<MaintenanceLog>(res);
+  },
+
+  async addMaintenanceLog(
+    garageId: string,
+    input: { type: MaintenanceType; title: string; hours?: number | null; sku?: string | null },
+  ) {
+    if (DEMO) {
+      const r = demoAddMaintenanceLog(garageId, input);
+      notifyProgress();
+      return r;
+    }
+    const res = await fetch(`${API_URL}/api/garage/${garageId}/log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(input),
+    });
+    const out = await handle<MaintenanceLog>(res);
+    notifyProgress();
+    return out;
+  },
+
+  async getSummary() {
+    if (DEMO) return demoGetSummary();
+    const res = await fetch(`${API_URL}/api/garage/summary`, { headers: authHeaders() });
+    return handle<GarageSummary>(res);
+  },
+
+  // GAMIFICATION Fase 5 — XP / niveau
+  async getProgress() {
+    if (DEMO) return demoGetProgress();
+    const res = await fetch(`${API_URL}/api/progress`, { headers: authHeaders() });
+    return handle<UserProgress>(res);
+  },
+
+  async trackAction(action: string, ref?: string) {
+    if (DEMO) {
+      const r = demoTrackAction(action, ref ?? null);
+      notifyProgress();
+      return r;
+    }
+    const res = await fetch(`${API_URL}/api/progress/track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ action, ref: ref ?? null }),
+    });
+    const out = await handle<UserProgress>(res);
+    notifyProgress();
+    return out;
   },
 
   // MODULE 3

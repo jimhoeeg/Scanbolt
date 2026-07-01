@@ -84,6 +84,59 @@ export interface GarageEntry {
   topWear: TopWear | null;
 }
 
+/** En post i vedligeholds-logbogen (Fase 4). */
+export type MaintenanceType = 'service' | 'repair' | 'inspection' | 'part_replaced' | 'note';
+
+export interface MaintenanceEntry {
+  id: string;
+  type: MaintenanceType;
+  title: string;
+  hours: number | null;
+  sku: string | null;
+  loggedAt: string;
+}
+
+export interface MaintenanceLog {
+  entries: MaintenanceEntry[];
+  serviceCount: number;
+  streak: number; // antal services på tid i træk
+}
+
+/** En milepæl/achievement (Fase 4). */
+export interface Achievement {
+  key: string;
+  icon: string;
+  label: string;
+  description: string;
+  unlocked: boolean;
+}
+
+/** Garage-resumé med milepæle (Fase 4). */
+export interface GarageSummary {
+  machineCount: number;
+  servicedCount: number;
+  healthyCount: number;
+  achievements: Achievement[];
+}
+
+/** Brugerens XP/niveau (Fase 5). */
+export interface XpEvent {
+  action: string;
+  points: number;
+  ref: string | null;
+  createdAt: string;
+}
+
+export interface UserProgress {
+  xp: number;
+  rank: string;
+  rankKey: string;
+  nextRank: string | null;
+  xpToNext: number;
+  progressPct: number;
+  recent: XpEvent[];
+}
+
 /** Forhandlerens tier-status + besparelse (Fase 3). */
 export interface DealerStatus {
   tier: PricingTier;

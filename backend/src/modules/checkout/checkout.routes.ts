@@ -10,6 +10,7 @@ import { Router } from 'express';
 import { queryOne, withTransaction } from '../../db/pool';
 import { authenticate, isDealer } from '../../middleware/auth';
 import { calculateB2BPrice, getErpCustomerId, simulateErpSync } from '../pricing/pricing.service';
+import { awardXp } from '../progress/progress.service';
 
 const router = Router();
 router.use(authenticate);
@@ -130,6 +131,8 @@ router.post('/', async (req, res, next) => {
         order.orderId,
       ]);
     }
+
+    await awardXp(userId, 'order_placed', order.orderId);
 
     return res.status(201).json({
       orderId: order.orderId,

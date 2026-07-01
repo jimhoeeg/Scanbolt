@@ -13,13 +13,18 @@
 import { Router } from 'express';
 import { authenticate, isDealer } from '../../middleware/auth';
 import {
+  addMaintenanceLog,
   addToGarage,
   getGarage,
+  getMaintenanceLog,
+  getSummary,
   getWear,
   markServiced,
   removeFromGarage,
   updateHours,
 } from './garage.service';
+
+const MAINT_TYPES = ['service', 'repair', 'inspection', 'part_replaced', 'note'] as const;
 
 const router = Router();
 
@@ -29,6 +34,15 @@ router.get('/', async (req, res, next) => {
   try {
     const entries = await getGarage(req.user!.id, isDealer(req));
     res.json({ entries, isDealer: isDealer(req) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Fase 4 — garage-resumé + milepæle.
+router.get('/summary', async (req, res, next) => {
+  try {
+    res.json(await getSummary(req.user!.id, isDealer(req)));
   } catch (err) {
     next(err);
   }
@@ -90,6 +104,36 @@ router.get('/:id/wear', async (req, res, next) => {
   try {
     const result = await getWear(req.user!.id, req.params.id);
     return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// Fase 4 — vedligeholds-logbog.
+router.get('/:id/log', async (req, res, next) => {
+  try {
+    return res.json(await getMaintenanceLog(req.user!.id, req.params.id));
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/:id/log', async (req, res, next) => {
+  try {
+    const { type, title, hours, sku } = req.body ?? {};
+    if (!MAINT_TYPES.includes(type)) {
+      return res.status(400).json({ error: `type must be one of ${MAINT_TYPES.join(', ')}` });
+    }
+    if (!title || typeof title !== 'string') {
+      return res.status(400).json({ error: 'title is required' });
+    }
+    const log = await addMaintenanceLog(req.user!.id, req.params.id, {
+      type,
+      title: title.slice(0, 200),
+      hours: hours != null && Number.isFinite(Number(hours)) ? Math.floor(Number(hours)) : null,
+      sku: sku ? String(sku) : null,
+    });
+    return res.status(201).json(log);
   } catch (err) {
     return next(err);
   }

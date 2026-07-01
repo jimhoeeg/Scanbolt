@@ -8,13 +8,18 @@
  * realistically.
  */
 import type {
+  Achievement,
   CsvRow,
   DealerStatus,
   GarageEntry,
+  GarageSummary,
+  MaintenanceLog,
+  MaintenanceType,
   OemLookupResult,
   ResolvedLine,
   RoleName,
   TopWear,
+  UserProgress,
   WearComponent,
 } from './types';
 import { healthScore, healthStatusFor, remainingHours, wearPct } from './gamify';
@@ -91,6 +96,96 @@ const VOLUME_BREAKS = [
 ];
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// --- GAMIFICATION Fase 4/5 stores (spejler backend) ------------------
+function iso(daysAgo: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysAgo);
+  return d.toISOString();
+}
+
+const XP_VALUES: Record<string, number> = {
+  machine_added: 50,
+  hours_logged: 10,
+  service_logged: 40,
+  log_added: 20,
+  guide_read: 15,
+  order_placed: 30,
+};
+
+const RANKS = [
+  { key: 'laerling', label: 'Lærling', minXp: 0 },
+  { key: 'mekaniker', label: 'Mekaniker', minXp: 100 },
+  { key: 'formand', label: 'Formand', minXp: 300 },
+  { key: 'mester', label: 'Mestermekaniker', minXp: 700 },
+  { key: 'vaerkfoerer', label: 'Værkfører', minXp: 1500 },
+];
+
+interface DemoXpEvent {
+  action: string;
+  points: number;
+  ref: string | null;
+  createdAt: string;
+}
+
+// Seedet så XP-baren starter et pænt sted (Mekaniker på vej mod Formand).
+const demoXpEvents: DemoXpEvent[] = [
+  { action: 'machine_added', points: 50, ref: null, createdAt: iso(-9) },
+  { action: 'machine_added', points: 50, ref: null, createdAt: iso(-8) },
+  { action: 'hours_logged', points: 10, ref: null, createdAt: iso(-6) },
+  { action: 'service_logged', points: 40, ref: null, createdAt: iso(-5) },
+  { action: 'guide_read', points: 15, ref: 'gummibaelter-levetid-og-slid', createdAt: iso(-3) },
+  { action: 'service_logged', points: 40, ref: null, createdAt: iso(-2) },
+  { action: 'log_added', points: 20, ref: null, createdAt: iso(-1) },
+];
+const guideReads = new Set<string>(['gummibaelter-levetid-og-slid']);
+
+function awardDemoXp(action: string, ref: string | null = null) {
+  const points = XP_VALUES[action];
+  if (!points) return;
+  if (action === 'guide_read') {
+    if (!ref || guideReads.has(ref)) return;
+    guideReads.add(ref);
+  }
+  demoXpEvents.push({ action, points, ref, createdAt: new Date().toISOString() });
+}
+
+interface DemoLog {
+  id: string;
+  type: MaintenanceType;
+  title: string;
+  hours: number | null;
+  sku: string | null;
+  loggedAt: string;
+}
+let logSeq = 0;
+const demoLogs: Record<string, DemoLog[]> = {
+  g1: [
+    { id: `l${logSeq++}`, type: 'service', title: 'Rutineservice', hours: 4950, sku: null, loggedAt: iso(-320) },
+    { id: `l${logSeq++}`, type: 'service', title: 'Rutineservice', hours: 5400, sku: null, loggedAt: iso(-160) },
+    { id: `l${logSeq++}`, type: 'part_replaced', title: 'Gummibælte skiftet (venstre)', hours: 5400, sku: 'RT-400X72.5', loggedAt: iso(-160) },
+    { id: `l${logSeq++}`, type: 'service', title: 'Rutineservice', hours: 5900, sku: null, loggedAt: iso(-30) },
+  ],
+  g2: [
+    { id: `l${logSeq++}`, type: 'service', title: 'Rutineservice', hours: 8500, sku: null, loggedAt: iso(-240) },
+    { id: `l${logSeq++}`, type: 'inspection', title: 'Undervognseftersyn', hours: 8900, sku: null, loggedAt: iso(-90) },
+    { id: `l${logSeq++}`, type: 'service', title: 'Rutineservice', hours: 9000, sku: null, loggedAt: iso(-60) },
+  ],
+  g3: [
+    { id: `l${logSeq++}`, type: 'service', title: 'Rutineservice', hours: 1500, sku: null, loggedAt: iso(-200) },
+    { id: `l${logSeq++}`, type: 'service', title: 'Rutineservice', hours: 1600, sku: null, loggedAt: iso(-90) },
+    { id: `l${logSeq++}`, type: 'service', title: 'Rutineservice', hours: 1720, sku: null, loggedAt: iso(-20) },
+  ],
+};
+
+function demoStreak(hoursAsc: number[], interval: number): number {
+  let s = 0;
+  for (let i = hoursAsc.length - 1; i > 0; i--) {
+    if (hoursAsc[i] - hoursAsc[i - 1] <= interval) s++;
+    else break;
+  }
+  return s;
+}
 
 // --- Auth ------------------------------------------------------------
 function currentRole(): RoleName {
@@ -197,13 +292,24 @@ export function demoGetGarage(): { entries: GarageEntry[]; isDealer: boolean } {
 export function demoUpdateHours(garageId: string, currentHours: number) {
   const h = demoHours[garageId as GarageId];
   if (h) h.current = Math.max(0, Math.floor(currentHours));
+  awardDemoXp('hours_logged');
   return { entry: buildEntry(garageId as GarageId, currentRole() === 'dealer') };
 }
 
-/** Fase 1 — marker som serviceret. */
+/** Fase 1+4 — marker som serviceret (nulstil + log service). */
 export function demoMarkServiced(garageId: string) {
   const h = demoHours[garageId as GarageId];
   if (h) h.last = h.current;
+  const arr = demoLogs[garageId] ?? (demoLogs[garageId] = []);
+  arr.push({
+    id: `l${logSeq++}`,
+    type: 'service',
+    title: 'Service udført',
+    hours: h?.current ?? null,
+    sku: null,
+    loggedAt: new Date().toISOString(),
+  });
+  awardDemoXp('service_logged', garageId);
   return { entry: buildEntry(garageId as GarageId, currentRole() === 'dealer') };
 }
 
@@ -228,6 +334,106 @@ export function demoDealerStatus(): DealerStatus {
     amountToNext: 12400,
     progressPct: 90,
   };
+}
+
+// --- Fase 4 — logbog & milepæle -------------------------------------
+export function demoGetMaintenanceLog(garageId: string): MaintenanceLog {
+  const logs = (demoLogs[garageId] ?? [])
+    .slice()
+    .sort((a, b) => b.loggedAt.localeCompare(a.loggedAt) || (b.hours ?? 0) - (a.hours ?? 0));
+  const g = GARAGES[garageId as GarageId];
+  const interval = g ? SERVICE_INTERVAL[g.machine.category] ?? 500 : 500;
+  const serviceHours = logs
+    .filter((l) => l.type === 'service' && l.hours != null)
+    .map((l) => l.hours as number)
+    .sort((a, b) => a - b);
+  return {
+    entries: logs.map((l) => ({ id: l.id, type: l.type, title: l.title, hours: l.hours, sku: l.sku, loggedAt: l.loggedAt })),
+    serviceCount: logs.filter((l) => l.type === 'service').length,
+    streak: demoStreak(serviceHours, interval),
+  };
+}
+
+export function demoAddMaintenanceLog(
+  garageId: string,
+  input: { type: MaintenanceType; title: string; hours?: number | null; sku?: string | null },
+): MaintenanceLog {
+  const arr = demoLogs[garageId] ?? (demoLogs[garageId] = []);
+  arr.push({
+    id: `l${logSeq++}`,
+    type: input.type,
+    title: input.title,
+    hours: input.hours ?? null,
+    sku: input.sku ?? null,
+    loggedAt: new Date().toISOString(),
+  });
+  awardDemoXp('log_added', garageId);
+  return demoGetMaintenanceLog(garageId);
+}
+
+const ACHIEVEMENTS: Omit<Achievement, 'unlocked'>[] = [
+  { key: 'first_machine', icon: '🚜', label: 'Garage åbnet', description: 'Tilføj din første maskine' },
+  { key: 'hours_logged', icon: '⏱️', label: 'Timetal på plads', description: 'Log timetal på en maskine' },
+  { key: 'first_service', icon: '🔧', label: 'Første service', description: 'Registrér en service i logbogen' },
+  { key: 'on_time_streak', icon: '🔥', label: 'På-tid-stribe', description: 'To services på tid i træk' },
+  { key: 'all_healthy', icon: '✅', label: 'Hele flåden sund', description: 'Alle maskiner er sunde' },
+  { key: 'knowledge', icon: '📚', label: 'Videbegærlig', description: 'Læs en guide i Viden' },
+];
+
+export function demoGetSummary(): GarageSummary {
+  const isDealer = currentRole() === 'dealer';
+  const ids: GarageId[] = isDealer ? ['g1', 'g2'] : ['g3'];
+  const entries = ids.map((id) => buildEntry(id, isDealer));
+  const machineCount = entries.length;
+  const healthyCount = entries.filter((e) => e.healthStatus === 'healthy').length;
+  const anyHours = entries.some((e) => e.currentHours != null);
+
+  let bestStreak = 0;
+  let servicedCount = 0;
+  for (const id of ids) {
+    const log = demoGetMaintenanceLog(id);
+    servicedCount += log.serviceCount;
+    bestStreak = Math.max(bestStreak, log.streak);
+  }
+
+  const unlocked: Record<string, boolean> = {
+    first_machine: machineCount >= 1,
+    hours_logged: anyHours,
+    first_service: servicedCount >= 1,
+    on_time_streak: bestStreak >= 2,
+    all_healthy: machineCount > 0 && healthyCount === machineCount,
+    knowledge: guideReads.size > 0,
+  };
+
+  return {
+    machineCount,
+    servicedCount,
+    healthyCount,
+    achievements: ACHIEVEMENTS.map((a) => ({ ...a, unlocked: unlocked[a.key] ?? false })),
+  };
+}
+
+// --- Fase 5 — XP / niveau -------------------------------------------
+export function demoGetProgress(): UserProgress {
+  const xp = demoXpEvents.reduce((s, e) => s + e.points, 0);
+  let idx = 0;
+  for (let i = 0; i < RANKS.length; i++) if (xp >= RANKS[i].minXp) idx = i;
+  const rank = RANKS[idx];
+  const next = RANKS[idx + 1] ?? null;
+  const xpToNext = next ? Math.max(0, next.minXp - xp) : 0;
+  const progressPct = next
+    ? Math.min(100, Math.round(((xp - rank.minXp) / (next.minXp - rank.minXp)) * 100))
+    : 100;
+  const recent = demoXpEvents
+    .slice()
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 8);
+  return { xp, rank: rank.label, rankKey: rank.key, nextRank: next?.label ?? null, xpToNext, progressPct, recent };
+}
+
+export function demoTrackAction(action: string, ref: string | null): UserProgress {
+  awardDemoXp(action, ref);
+  return demoGetProgress();
 }
 
 export function demoProductsForMachine(machineId: string) {

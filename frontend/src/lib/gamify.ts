@@ -53,3 +53,40 @@ export function fmtHours(n: number): string {
 export function fmtKr(n: number): string {
   return `${Math.round(n).toLocaleString('da-DK')} kr`;
 }
+
+/** Ikon pr. rang (Fase 5). */
+export const RANK_ICON: Record<string, string> = {
+  laerling: '🔰',
+  mekaniker: '🔧',
+  formand: '🛠️',
+  mester: '🏅',
+  vaerkfoerer: '👷',
+};
+
+/** Dansk label pr. XP-handling (til "seneste aktivitet"). */
+export const XP_ACTION_LABEL: Record<string, string> = {
+  machine_added: 'Maskine tilføjet',
+  hours_logged: 'Timetal opdateret',
+  service_logged: 'Service registreret',
+  log_added: 'Logbogspost tilføjet',
+  guide_read: 'Guide læst',
+  order_placed: 'Ordre afgivet',
+};
+
+/** Dansk label + ikon pr. logbogs-type (Fase 4). */
+export const MAINT_TYPE_UI: Record<string, { label: string; icon: string }> = {
+  service: { label: 'Service', icon: '🔧' },
+  repair: { label: 'Reparation', icon: '🛠️' },
+  inspection: { label: 'Eftersyn', icon: '🔍' },
+  part_replaced: { label: 'Del udskiftet', icon: '⚙️' },
+  note: { label: 'Note', icon: '📝' },
+};
+
+/** Kort dato (dansk). */
+export function fmtDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return iso;
+  }
+}
