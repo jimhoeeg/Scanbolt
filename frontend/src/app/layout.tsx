@@ -36,6 +36,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
             </nav>
           </header>
+          {process.env.NEXT_PUBLIC_DEMO === 'true' && (
+            <div className="bg-safety-500 px-4 py-1.5 text-center text-xs font-medium text-steel-900">
+              DEMO MODE — static GitHub Pages preview with mock data. Sign in with any email
+              containing “dealer” to unlock the Dealer Portal.
+            </div>
+          )}
           <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
         </AuthProvider>
       </body>

@@ -3,6 +3,16 @@
  * Injects the bearer token from localStorage and normalizes error handling.
  */
 import type { CsvRow, GarageEntry, OemLookupResult, ResolvedLine } from './types';
+import {
+  DEMO,
+  demoCheckout,
+  demoGetGarage,
+  demoLogin,
+  demoOemLookup,
+  demoProductsForMachine,
+  demoQuickOrder,
+  demoUploadCsv,
+} from './demoData';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -23,6 +33,7 @@ async function handle<T>(res: Response): Promise<T> {
 export const api = {
   // MODULE 1
   async login(email: string, password: string) {
+    if (DEMO) return demoLogin(email);
     const res = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -33,11 +44,13 @@ export const api = {
 
   // MODULE 2
   async getGarage() {
+    if (DEMO) return demoGetGarage();
     const res = await fetch(`${API_URL}/api/garage`, { headers: authHeaders() });
     return handle<{ entries: GarageEntry[]; isDealer: boolean }>(res);
   },
 
   async getProductsForMachine(machineId: string) {
+    if (DEMO) return demoProductsForMachine(machineId);
     const res = await fetch(`${API_URL}/api/products?machine_id=${encodeURIComponent(machineId)}`, {
       headers: authHeaders(),
     });
@@ -46,6 +59,7 @@ export const api = {
 
   // MODULE 3
   async quickOrder(lines: { sku: string; quantity: number }[]) {
+    if (DEMO) return demoQuickOrder(lines);
     const res = await fetch(`${API_URL}/api/dealer/quick-order`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -55,6 +69,7 @@ export const api = {
   },
 
   async oemLookup(oemNumber: string) {
+    if (DEMO) return demoOemLookup(oemNumber);
     const res = await fetch(`${API_URL}/api/dealer/oem-lookup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -64,6 +79,7 @@ export const api = {
   },
 
   async uploadCsv(file: File) {
+    if (DEMO) return demoUploadCsv(file);
     const form = new FormData();
     form.append('file', file);
     const res = await fetch(`${API_URL}/api/dealer/upload-csv`, {
@@ -76,6 +92,7 @@ export const api = {
 
   // MODULE 4
   async checkout(payload: { lines: { sku: string; quantity: number }[]; garageId?: string; poNumber?: string }) {
+    if (DEMO) return demoCheckout(payload);
     const res = await fetch(`${API_URL}/api/checkout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },

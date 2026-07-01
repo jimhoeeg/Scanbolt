@@ -6,6 +6,7 @@
  * on whether the signed-in user is a dealer (fleet) or a standard buyer.
  */
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { GarageEntry } from '@/lib/types';
@@ -13,6 +14,7 @@ import { MachineCard } from './MachineCard';
 
 export function GarageDashboard() {
   const { isDealer, isAuthenticated } = useAuth();
+  const router = useRouter();
   const [entries, setEntries] = useState<GarageEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,8 @@ export function GarageDashboard() {
 
   const handleShopParts = (entry: GarageEntry) => {
     // Navigate to the fitment-filtered catalog for this machine.
-    window.location.href = `/products?machine_id=${entry.machine.id}`;
+    // router.push respects Next's basePath (needed on GitHub Pages).
+    router.push(`/products?machine_id=${entry.machine.id}`);
   };
 
   const handleAddJobToCart = async (entry: GarageEntry) => {

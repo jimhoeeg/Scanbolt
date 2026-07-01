@@ -68,6 +68,13 @@ A dealer's **Fleet Garage** entry (`customer_name` / `job_id`) flows all the way
 to checkout metadata (Module 4), so every B2B order is invoiced against the
 right customer job.
 
+## Live preview (GitHub Pages)
+
+The frontend auto-deploys to GitHub Pages as a **static demo** (mock data, no
+backend) via `.github/workflows/deploy-pages.yml`. One-time setup: **Settings →
+Pages → Source: GitHub Actions**. Full instructions and demo credentials are in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 See each module's source directory for schema, endpoints, and components. This
 repository is a reference blueprint: it is fully typed and internally
 consistent, and is structured so each module can be developed and deployed
