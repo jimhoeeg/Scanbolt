@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-steel-50 text-steel-800 antialiased;
+}
+
+/* Dense, tabular numerals for dealer data grids. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
