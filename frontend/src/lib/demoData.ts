@@ -7,7 +7,17 @@
  * seed (backend/db/seed.sql) and MODULE 4 pricing rules so the preview behaves
  * realistically.
  */
-import type { CsvRow, GarageEntry, OemLookupResult, ResolvedLine, RoleName } from './types';
+import type {
+  CsvRow,
+  DealerStatus,
+  GarageEntry,
+  OemLookupResult,
+  ResolvedLine,
+  RoleName,
+  TopWear,
+  WearComponent,
+} from './types';
+import { healthScore, healthStatusFor, remainingHours, wearPct } from './gamify';
 
 export const DEMO = process.env.NEXT_PUBLIC_DEMO === 'true';
 
@@ -17,14 +27,33 @@ interface DemoPart {
   title: string;
   price: number;
   stock: number;
+  category: string;
 }
 
 const PARTS: Record<string, DemoPart> = {
-  'FD-CAT-320D': { sku: 'FD-CAT-320D', title: 'Final Drive Assembly — Cat 320D', price: 3450, stock: 8 },
-  'RT-400X72.5': { sku: 'RT-400X72.5', title: 'Rubber Track 400x72.5x74', price: 690, stock: 40 },
-  'FD-PC200': { sku: 'FD-PC200', title: 'Final Drive — Komatsu PC200-8', price: 3980, stock: 5 },
-  'RT-300X52.5': { sku: 'RT-300X52.5', title: 'Rubber Track 300x52.5x84 (Bobcat E35)', price: 520, stock: 22 },
-  'FILT-HYD-01': { sku: 'FILT-HYD-01', title: 'Hydraulic Filter — universal', price: 42.5, stock: 300 },
+  'FD-CAT-320D': { sku: 'FD-CAT-320D', title: 'Final Drive — Cat 320D', price: 3450, stock: 8, category: 'final_drive' },
+  'RT-400X72.5': { sku: 'RT-400X72.5', title: 'Gummibælte 400x72.5x74', price: 690, stock: 40, category: 'rubber_track' },
+  'FD-PC200': { sku: 'FD-PC200', title: 'Final Drive — Komatsu PC200-8', price: 3980, stock: 5, category: 'final_drive' },
+  'RT-300X52.5': { sku: 'RT-300X52.5', title: 'Gummibælte 300x52.5x84 (Bobcat E35)', price: 520, stock: 22, category: 'rubber_track' },
+  'FILT-HYD-01': { sku: 'FILT-HYD-01', title: 'Hydraulikfilter — universal', price: 42.5, stock: 300, category: 'filter' },
+};
+
+// Forventet levetid (driftstimer) for sliddele — spejler migration 006.
+const WEAR_LIFE: Record<string, number> = {
+  'FD-CAT-320D': 8000,
+  'FD-PC200': 8000,
+  'RT-400X72.5': 3000,
+  'RT-300X52.5': 3000,
+};
+
+// Serviceinterval pr. maskinkategori — spejler service_intervals.
+const SERVICE_INTERVAL: Record<string, number> = {
+  excavator: 500,
+  mini_excavator: 400,
+  wheel_loader: 500,
+  bulldozer: 500,
+  skid_steer: 400,
+  other: 500,
 };
 
 // External OEM number -> internal SKU (+ manufacturer).
@@ -86,23 +115,118 @@ export function demoLogin(email: string) {
   };
 }
 
-// --- MODULE 2: garage + products ------------------------------------
+// --- MODULE 2 + GAMIFICATION: garage, sundhed, slid -----------------
+type GarageId = 'g1' | 'g2' | 'g3';
+
+interface DemoGarage {
+  machine: (typeof MACHINES)[keyof typeof MACHINES];
+  nickname: string | null;
+  customerName: string | null;
+  jobId: string | null;
+  serialNumber: string | null;
+}
+
+const GARAGES: Record<GarageId, DemoGarage> = {
+  g1: { machine: MACHINES.m1, nickname: null, customerName: 'Acme Excavation', jobId: 'JOB-2026-014', serialNumber: 'CAT320D-88213' },
+  g2: { machine: MACHINES.m2, nickname: null, customerName: 'Northern Quarry', jobId: 'JOB-2026-021', serialNumber: 'PC200-55901' },
+  g3: { machine: MACHINES.m3, nickname: 'Min minigraver', customerName: null, jobId: null, serialNumber: null },
+};
+
+// Mutabelt time-lager, så opdateringer holder i sessionen (nulstilles ved reload).
+const demoHours: Record<GarageId, { current: number; last: number }> = {
+  g1: { current: 6120, last: 5900 }, // 220 t siden service → gul
+  g2: { current: 9450, last: 9000 }, // 450 t → rød
+  g3: { current: 1780, last: 1720 }, // 60 t → grøn
+};
+
+/** Sliddele (med levetid) for en maskine, sorteret mest-slidt først. */
+function wearComponentsFor(machineId: string, currentHours: number): WearComponent[] {
+  const skus = FITMENT[machineId] ?? [];
+  return skus
+    .filter((s) => WEAR_LIFE[s] != null)
+    .map((s) => ({
+      sku: s,
+      title: PARTS[s].title,
+      category: PARTS[s].category,
+      price: PARTS[s].price,
+      wearPct: wearPct(currentHours, WEAR_LIFE[s]),
+      remainingHours: remainingHours(currentHours, WEAR_LIFE[s]),
+    }))
+    .sort((a, b) => b.wearPct - a.wearPct);
+}
+
+function buildEntry(id: GarageId, includeFleet: boolean): GarageEntry {
+  const g = GARAGES[id];
+  const h = demoHours[id];
+  const interval = SERVICE_INTERVAL[g.machine.category] ?? 500;
+  const hasData = h.current > 0;
+  const since = hasData ? Math.max(0, h.current - h.last) : null;
+  const score = hasData ? healthScore(h.current, h.last, interval) : null;
+
+  let topWear: TopWear | null = null;
+  if (hasData) {
+    const w = wearComponentsFor(g.machine.id, h.current);
+    if (w[0]) topWear = { sku: w[0].sku, title: w[0].title, wearPct: w[0].wearPct, remainingHours: w[0].remainingHours };
+  }
+
+  return {
+    id,
+    machine: g.machine,
+    nickname: g.nickname,
+    customerName: includeFleet ? g.customerName : null,
+    jobId: includeFleet ? g.jobId : null,
+    serialNumber: g.serialNumber,
+    createdAt: new Date().toISOString(),
+    currentHours: hasData ? h.current : null,
+    lastServiceHours: hasData ? h.last : null,
+    hoursSinceService: since,
+    serviceIntervalHours: interval,
+    healthScore: score,
+    healthStatus: healthStatusFor(score ?? 0, hasData),
+    topWear,
+  };
+}
+
 export function demoGetGarage(): { entries: GarageEntry[]; isDealer: boolean } {
   const isDealer = currentRole() === 'dealer';
-  if (isDealer) {
-    return {
-      isDealer,
-      entries: [
-        { id: 'g1', machine: MACHINES.m1, nickname: null, customerName: 'Acme Excavation', jobId: 'JOB-2026-014', serialNumber: 'CAT320D-88213', createdAt: new Date().toISOString() },
-        { id: 'g2', machine: MACHINES.m2, nickname: null, customerName: 'Northern Quarry', jobId: 'JOB-2026-021', serialNumber: 'PC200-55901', createdAt: new Date().toISOString() },
-      ],
-    };
-  }
+  const ids: GarageId[] = isDealer ? ['g1', 'g2'] : ['g3'];
+  return { isDealer, entries: ids.map((id) => buildEntry(id, isDealer)) };
+}
+
+/** Fase 1 — opdatér driftstimer. */
+export function demoUpdateHours(garageId: string, currentHours: number) {
+  const h = demoHours[garageId as GarageId];
+  if (h) h.current = Math.max(0, Math.floor(currentHours));
+  return { entry: buildEntry(garageId as GarageId, currentRole() === 'dealer') };
+}
+
+/** Fase 1 — marker som serviceret. */
+export function demoMarkServiced(garageId: string) {
+  const h = demoHours[garageId as GarageId];
+  if (h) h.last = h.current;
+  return { entry: buildEntry(garageId as GarageId, currentRole() === 'dealer') };
+}
+
+/** Fase 2 — fuld slid-liste for én garage-maskine. */
+export function demoGetWear(garageId: string) {
+  const g = GARAGES[garageId as GarageId];
+  const h = demoHours[garageId as GarageId];
+  const currentHours = h?.current ?? 0;
+  const components = g && currentHours > 0 ? wearComponentsFor(g.machine.id, currentHours) : [];
+  return { currentHours, components };
+}
+
+/** Fase 3 — forhandler tier-status + besparelse (mock-tal). */
+export function demoDealerStatus(): DealerStatus {
   return {
-    isDealer,
-    entries: [
-      { id: 'g3', machine: MACHINES.m3, nickname: 'My mini digger', customerName: null, jobId: null, serialNumber: null, createdAt: new Date().toISOString() },
-    ],
+    tier: 'gold',
+    baseDiscount: 15,
+    ytdSpend: 187600,
+    ytdSavings: 84320,
+    nextTier: 'platinum',
+    nextTierThreshold: 200000,
+    amountToNext: 12400,
+    progressPct: 90,
   };
 }
 

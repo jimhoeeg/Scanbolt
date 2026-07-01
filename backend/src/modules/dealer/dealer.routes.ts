@@ -12,6 +12,7 @@ import multer from 'multer';
 import { authenticate, requireRole } from '../../middleware/auth';
 import { parseOrderCsv } from './csv';
 import { lookupOem, resolveCsvRows, resolveQuickOrder } from './dealer.service';
+import { getDealerStatus } from '../pricing/pricing.service';
 
 const router = Router();
 
@@ -41,6 +42,16 @@ router.post('/quick-order', async (req, res, next) => {
 
     const result = await resolveQuickOrder(req.user!.id, cleaned);
     return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// Fase 3 — tier-progression + besparelse.
+router.get('/status', async (req, res, next) => {
+  try {
+    const status = await getDealerStatus(req.user!.id);
+    return res.json(status);
   } catch (err) {
     return next(err);
   }

@@ -43,6 +43,27 @@ export interface Part {
   stockQty: number;
 }
 
+/** Sundhedsstatus for en maskine (Fase 1). */
+export type HealthStatus = 'healthy' | 'due_soon' | 'overdue' | 'unknown';
+
+/** Kort resumé af den mest slidte komponent på en maskine (Fase 2). */
+export interface TopWear {
+  sku: string;
+  title: string;
+  wearPct: number;
+  remainingHours: number;
+}
+
+/** En sliddel med estimeret slid + restlevetid (Fase 2). */
+export interface WearComponent {
+  sku: string;
+  title: string;
+  category: string;
+  wearPct: number;
+  remainingHours: number;
+  price: number;
+}
+
 /** A row from the user's garage; fleet fields are null for standard buyers. */
 export interface GarageEntry {
   id: string;
@@ -52,6 +73,27 @@ export interface GarageEntry {
   jobId: string | null;
   serialNumber: string | null;
   createdAt: string;
+  // --- Fase 1: sundhed & driftstimer ---
+  currentHours: number | null;
+  lastServiceHours: number | null;
+  hoursSinceService: number | null;
+  serviceIntervalHours: number;
+  healthScore: number | null;
+  healthStatus: HealthStatus;
+  // --- Fase 2: værste sliddel ---
+  topWear: TopWear | null;
+}
+
+/** Forhandlerens tier-status + besparelse (Fase 3). */
+export interface DealerStatus {
+  tier: PricingTier;
+  baseDiscount: number;
+  ytdSpend: number;
+  ytdSavings: number;
+  nextTier: PricingTier | null;
+  nextTierThreshold: number | null;
+  amountToNext: number | null;
+  progressPct: number;
 }
 
 /** Result of pricing a single line for a dealer (MODULE 4). */

@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { QuickOrderMatrix } from '@/components/dealer/QuickOrderMatrix';
 import { CsvUploader } from '@/components/dealer/CsvUploader';
+import { DealerStatusBar } from '@/components/dealer/DealerStatusBar';
 import { api } from '@/lib/api';
 import type { OemLookupResult } from '@/lib/types';
 
@@ -33,6 +34,9 @@ export default function DealerPortalPage() {
           Højvolumen-bestilling med live tier-priser, OEM-krydsreference og CSV-import.
         </p>
       </header>
+
+      {/* Fase 3 — tier-progression + besparelse */}
+      <DealerStatusBar />
 
       <OemLookupBar />
 

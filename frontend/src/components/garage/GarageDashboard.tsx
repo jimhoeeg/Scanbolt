@@ -56,6 +56,20 @@ export function GarageDashboard() {
     );
   };
 
+  // Fase 1 — opdatér en enkelt maskine i state efter timer/service.
+  const replaceEntry = (updated: GarageEntry) =>
+    setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+
+  const handleUpdateHours = async (garageId: string, currentHours: number) => {
+    const { entry } = await api.updateHours(garageId, currentHours);
+    replaceEntry(entry);
+  };
+
+  const handleMarkServiced = async (garageId: string) => {
+    const { entry } = await api.markServiced(garageId);
+    replaceEntry(entry);
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-10 text-center">
@@ -97,6 +111,8 @@ export function GarageDashboard() {
               isDealer={isDealer}
               onShopParts={handleShopParts}
               onAddJobToCart={handleAddJobToCart}
+              onUpdateHours={handleUpdateHours}
+              onMarkServiced={handleMarkServiced}
             />
           ))}
         </div>

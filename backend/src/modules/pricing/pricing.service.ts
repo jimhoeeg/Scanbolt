@@ -10,7 +10,7 @@
  * in production, swap the body for a real HTTP request; the signature stays.
  */
 import { queryOne } from '../../db/pool';
-import { B2BPriceResult, PricingTier } from '../../types';
+import { B2BPriceResult, DealerStatus, PricingTier } from '../../types';
 
 interface DealerPricingContext {
   tier: PricingTier;
@@ -149,4 +149,72 @@ export async function getErpCustomerId(userId: string): Promise<string | null> {
     [userId],
   );
   return row?.erp_customer_id ?? null;
+}
+
+/**
+ * Fase 3 — forhandlerens tier-status + besparelse (til progressbaren).
+ * Beregner årets forbrug og besparelse fra `orders`/`order_items`, finder
+ * næste tier ud fra omsætningsgrænserne og hvor langt der er dertil.
+ */
+export async function getDealerStatus(userId: string): Promise<DealerStatus> {
+  const profile = await queryOne<{ tier: PricingTier; base_discount: string; min_spend: string }>(
+    `SELECT dp.pricing_tier AS tier, pt.base_discount, pt.min_annual_spend AS min_spend
+       FROM dealer_profiles dp
+       JOIN pricing_tiers pt ON pt.tier = dp.pricing_tier
+      WHERE dp.user_id = $1`,
+    [userId],
+  );
+  const tier = profile?.tier ?? 'bronze';
+  const baseDiscount = Number(profile?.base_discount ?? 0);
+  const currentThreshold = Number(profile?.min_spend ?? 0);
+
+  // Årets forbrug (grand_total) og besparelse (list − net) fra ordrer.
+  const spendRow = await queryOne<{ ytd_spend: string }>(
+    `SELECT COALESCE(SUM(grand_total), 0) AS ytd_spend
+       FROM orders
+      WHERE user_id = $1
+        AND status <> 'cancelled'
+        AND created_at >= date_trunc('year', now())`,
+    [userId],
+  );
+  const savingsRow = await queryOne<{ ytd_savings: string }>(
+    `SELECT COALESCE(SUM((oi.unit_list_price - oi.unit_net_price) * oi.quantity), 0) AS ytd_savings
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+      WHERE o.user_id = $1
+        AND o.status <> 'cancelled'
+        AND o.created_at >= date_trunc('year', now())`,
+    [userId],
+  );
+  const ytdSpend = Number(spendRow?.ytd_spend ?? 0);
+  const ytdSavings = Number(savingsRow?.ytd_savings ?? 0);
+
+  // Næste tier = laveste grænse der ligger over den nuværende.
+  const next = await queryOne<{ tier: PricingTier; min_spend: string }>(
+    `SELECT tier, min_annual_spend AS min_spend
+       FROM pricing_tiers
+      WHERE min_annual_spend > $1
+      ORDER BY min_annual_spend ASC
+      LIMIT 1`,
+    [currentThreshold],
+  );
+
+  const nextTier = next?.tier ?? null;
+  const nextTierThreshold = next ? Number(next.min_spend) : null;
+  const amountToNext = nextTierThreshold != null ? Math.max(0, nextTierThreshold - ytdSpend) : null;
+  const progressPct =
+    nextTierThreshold != null && nextTierThreshold > currentThreshold
+      ? Math.min(100, Math.round(((ytdSpend - currentThreshold) / (nextTierThreshold - currentThreshold)) * 100))
+      : 100;
+
+  return {
+    tier,
+    baseDiscount,
+    ytdSpend: round2(ytdSpend),
+    ytdSavings: round2(ytdSavings),
+    nextTier,
+    nextTierThreshold,
+    amountToNext: amountToNext != null ? round2(amountToNext) : null,
+    progressPct: Math.max(0, progressPct),
+  };
 }

@@ -1,15 +1,25 @@
 /**
  * MODULE 2 — Garage routes.
- *   GET    /api/garage       Fetch saved machines for the logged-in user.
- *   POST   /api/garage       Add a machine to the garage.
- *   DELETE /api/garage/:id   Remove a machine from the garage.
+ *   GET    /api/garage            Fetch saved machines for the logged-in user.
+ *   POST   /api/garage            Add a machine to the garage.
+ *   DELETE /api/garage/:id        Remove a machine from the garage.
+ *   PATCH  /api/garage/:id/hours  Update operating hours (Fase 1).
+ *   POST   /api/garage/:id/service  Mark as serviced (Fase 1).
+ *   GET    /api/garage/:id/wear   Wear estimate per component (Fase 2).
  *
  * All routes require authentication. Fleet fields (customer_name / job_id)
  * are only read/written for dealers — enforced via `isDealer(req)`.
  */
 import { Router } from 'express';
 import { authenticate, isDealer } from '../../middleware/auth';
-import { addToGarage, getGarage, removeFromGarage } from './garage.service';
+import {
+  addToGarage,
+  getGarage,
+  getWear,
+  markServiced,
+  removeFromGarage,
+  updateHours,
+} from './garage.service';
 
 const router = Router();
 
@@ -46,6 +56,40 @@ router.delete('/:id', async (req, res, next) => {
     const removed = await removeFromGarage(req.user!.id, req.params.id);
     if (!removed) return res.status(404).json({ error: 'Garage entry not found' });
     return res.status(204).send();
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// Fase 1 — opdatér driftstimer.
+router.patch('/:id/hours', async (req, res, next) => {
+  try {
+    const currentHours = Number(req.body?.currentHours);
+    if (!Number.isFinite(currentHours) || currentHours < 0) {
+      return res.status(400).json({ error: 'currentHours must be a non-negative number' });
+    }
+    const entry = await updateHours(req.user!.id, req.params.id, currentHours, isDealer(req));
+    return res.json({ entry });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// Fase 1 — marker som serviceret.
+router.post('/:id/service', async (req, res, next) => {
+  try {
+    const entry = await markServiced(req.user!.id, req.params.id, isDealer(req));
+    return res.json({ entry });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// Fase 2 — slid-estimat pr. komponent.
+router.get('/:id/wear', async (req, res, next) => {
+  try {
+    const result = await getWear(req.user!.id, req.params.id);
+    return res.json(result);
   } catch (err) {
     return next(err);
   }

@@ -19,6 +19,24 @@ export interface Machine {
   category: string;
 }
 
+export type HealthStatus = 'healthy' | 'due_soon' | 'overdue' | 'unknown';
+
+export interface TopWear {
+  sku: string;
+  title: string;
+  wearPct: number;
+  remainingHours: number;
+}
+
+export interface WearComponent {
+  sku: string;
+  title: string;
+  category: string;
+  wearPct: number;
+  remainingHours: number;
+  price: number;
+}
+
 export interface GarageEntry {
   id: string;
   machine: Machine;
@@ -27,6 +45,26 @@ export interface GarageEntry {
   jobId: string | null; // dealer/fleet only
   serialNumber: string | null;
   createdAt: string;
+  // Fase 1 — sundhed & driftstimer
+  currentHours: number | null;
+  lastServiceHours: number | null;
+  hoursSinceService: number | null;
+  serviceIntervalHours: number;
+  healthScore: number | null;
+  healthStatus: HealthStatus;
+  // Fase 2 — værste sliddel
+  topWear: TopWear | null;
+}
+
+export interface DealerStatus {
+  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  baseDiscount: number;
+  ytdSpend: number;
+  ytdSavings: number;
+  nextTier: 'bronze' | 'silver' | 'gold' | 'platinum' | null;
+  nextTierThreshold: number | null;
+  amountToNext: number | null;
+  progressPct: number;
 }
 
 export interface ResolvedLine {

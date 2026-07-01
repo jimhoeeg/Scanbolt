@@ -2,17 +2,21 @@
  * Thin typed fetch wrapper around the Scanbolt API.
  * Injects the bearer token from localStorage and normalizes error handling.
  */
-import type { CsvRow, GarageEntry, OemLookupResult, ResolvedLine } from './types';
+import type { CsvRow, DealerStatus, GarageEntry, OemLookupResult, ResolvedLine, WearComponent } from './types';
 import {
   DEMO,
   demoAllProducts,
   demoCheckout,
+  demoDealerStatus,
   demoGetGarage,
+  demoGetWear,
   demoLogin,
   demoMachines,
+  demoMarkServiced,
   demoOemLookup,
   demoProductsForMachine,
   demoQuickOrder,
+  demoUpdateHours,
   demoUploadCsv,
 } from './demoData';
 
@@ -78,6 +82,40 @@ export const api = {
     if (DEMO) return { machines: demoMachines() };
     const res = await fetch(`${API_URL}/api/machines`, { headers: authHeaders() });
     return handle<{ machines: MachineOption[] }>(res);
+  },
+
+  // GAMIFICATION Fase 1 — driftstimer & sundhed
+  async updateHours(garageId: string, currentHours: number) {
+    if (DEMO) return demoUpdateHours(garageId, currentHours);
+    const res = await fetch(`${API_URL}/api/garage/${garageId}/hours`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ currentHours }),
+    });
+    return handle<{ entry: GarageEntry }>(res);
+  },
+
+  async markServiced(garageId: string) {
+    if (DEMO) return demoMarkServiced(garageId);
+    const res = await fetch(`${API_URL}/api/garage/${garageId}/service`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    return handle<{ entry: GarageEntry }>(res);
+  },
+
+  // GAMIFICATION Fase 2 — slid-estimat
+  async getWear(garageId: string) {
+    if (DEMO) return demoGetWear(garageId);
+    const res = await fetch(`${API_URL}/api/garage/${garageId}/wear`, { headers: authHeaders() });
+    return handle<{ currentHours: number; components: WearComponent[] }>(res);
+  },
+
+  // GAMIFICATION Fase 3 — forhandler-status
+  async getDealerStatus() {
+    if (DEMO) return demoDealerStatus();
+    const res = await fetch(`${API_URL}/api/dealer/status`, { headers: authHeaders() });
+    return handle<DealerStatus>(res);
   },
 
   // MODULE 3

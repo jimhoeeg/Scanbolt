@@ -1,5 +1,5 @@
 -- =====================================================================
--- Seed data — run AFTER all migrations (001 → 004).
+-- Seed data — run AFTER all migrations (001 → 007).
 -- Passwords below are bcrypt hashes of 'password123' (demo only).
 -- =====================================================================
 
@@ -63,3 +63,12 @@ INSERT INTO user_garages (user_id, machine_id, nickname) VALUES
 -- --- A negotiated contract price for the gold dealer -----------------
 INSERT INTO contract_prices (user_id, part_id, unit_price) VALUES
   ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000002', 610.00);
+
+-- --- Service status pr. garage-maskine (Fase 1) ----------------------
+-- Varierede timer, så sundhedsscoren viser grøn/gul/rød i demoen.
+INSERT INTO machine_service_status (garage_id, current_hours, last_service_hours)
+SELECT g.id,
+       CASE m.model WHEN '320D' THEN 6120 WHEN 'PC200-8' THEN 9450 ELSE 1780 END,
+       CASE m.model WHEN '320D' THEN 5900 WHEN 'PC200-8' THEN 9000 ELSE 1720 END
+  FROM user_garages g
+  JOIN machines m ON m.id = g.machine_id;
